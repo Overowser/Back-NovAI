@@ -67,7 +67,3 @@ def get_text(keyword, chapter, number):
     text = text.replace('+', 'plus')
 
     return {'url': url, 'text': text}
-
-
-
-print(get_text("alchemy emperor of the divine dao", "1", "3"))
