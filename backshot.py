@@ -1,6 +1,12 @@
 import requests
 from bs4 import BeautifulSoup
 
+## Issues:
+# * perf: Make the data retrieval async to make it faster
+# * feat: Make the data retrieval possible with url and number ignoring the chapter
+# * feat: Change the code to javascript
+
+
 headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0",
 }
@@ -96,4 +102,5 @@ def get_text(keyword, chapter, number):
         "formatted":text_formatted,
         "array":text_array
         }
+
 
