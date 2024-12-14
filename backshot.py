@@ -50,14 +50,12 @@ async def get_urls(session, number, chapter, keyword):
         for index, (title, link) in enumerate(zip(titles, page_links)):
             if str(chapter) in title:
                 last_page = (index + number) // 50 + page_num
-                # print("chapter", chapter, "number", number, "last_page", last_page)
                 for sub_page_num in range(page_num + 1, last_page + 1):
                     sub_page_url = f"{url_part1}{sub_page_num}"
                     soup = await fetch_html(session, sub_page_url)
                     page_links += [item['href'] for item in soup.select('.list-chapter li a')]
 
                 links = [f"https://novelfull.com{link}" for link in page_links[index:][:number]]
-                # print(links[0], links[-1])
                 state = True
                 novel_image = "https://novelfull.com" + soup1.select_one('.book img')['src']
                 break
@@ -104,3 +102,4 @@ async def get_text(keyword, chapter, number):
 
 # Example usage (Run inside an event loop):
 # print(asyncio.run(get_text("alchemy emperor of the divine dao", 1, 1)))
+
