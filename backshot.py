@@ -1,6 +1,7 @@
 import aiohttp
 from bs4 import BeautifulSoup
 import asyncio
+import re
 
 headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0",
@@ -24,6 +25,7 @@ async def get_page_content(session, url):
 async def get_urls(session, number, chapter, keyword):
     number = int(number)
     chapter = int(chapter)
+    
 
     search_url = f"https://novelfull.com/search?keyword={keyword}"
     search_soup = await fetch_html(session, search_url)
@@ -35,12 +37,12 @@ async def get_urls(session, number, chapter, keyword):
     links = []
     novel_image = None
 
-    tasks = []
-    for page_num in range(page, page + 2):
-        url_part1 = f'https://novelfull.com/infinite-mana-in-the-apocalypse.html?page='
-        page_url = f"{url_part1}{page_num}"
-        tasks.append(fetch_html(session, page_url))
+    url_part1 = f'https://novelfull.com{search_soup.select_one('.truyen-title a')["href"]}?page='
 
+    tasks = [
+        fetch_html(session, f"{url_part1}{page_num}")
+        for page_num in range(page, page + 2)
+    ]
     page_soups = await asyncio.gather(*tasks)
 
     for page_num, soup1 in zip(range(page, page + 2), page_soups):
@@ -65,18 +67,18 @@ async def get_urls(session, number, chapter, keyword):
     return links, novel_title, novel_image
 
 def preprocess(text):
-    replacements = {
-        '.a.p.e': 'ape', 'l.a.p': 'lap', '+': ' plus',
-        '.a.r.e': 'are', '.o.a.n': 'oan', '.a.t.u.r.e': 'ature',
-        '.r.e.a.s.t': 'reast', '.b.s.c.e.n.e': 'bscene',
-        '.u.c.k.i.n.g': 'ucking', '.u.c.k.e.d': 'ucked', '.i.e.d': 'ed',
-        '.U.C.K': 'uck', '.u.c.k': 'uck',
-        '.h.e.s.t': 'hest', '.o.c.k': 'ock', '.e.m.e.n': 'emen',
-        '.i.p.s': 'ips', '.u.m': 'um', '.u.s.t': 'ust', '.e.x': 'ex',
-        '.d.u.l.t': 'dult', '.i.c.k': 'ick', '.r.o.s.t.i.t.u.t.e': 'rostitute'
-    }
-    for old, new in replacements.items():
-        text = text.replace(old, new)
+    # Regex patterns
+    replacements = [
+        (r'(?<!\w)\.(\w)\.', r'\1'),  # Replace ".letter." with "letter" only if not part of a longer word
+        (r'(?<=\w)\.(\w)', r'\1'),    # Replace ".letter" when preceded by a word character
+        (r'(\w)\.(?=\w)', r'\1'),     # Replace "letter." when followed by a word character
+        (r'\+', ' plus'),             # Replace "+" with "plus"
+    ]
+    
+    # Apply each regex replacement
+    for pattern, replacement in replacements:
+        text = re.sub(pattern, replacement, text)
+    
     return text
 
 async def get_text(keyword, chapter, number):

@@ -31,33 +31,26 @@ async def get_urls(session, number, chapter, keyword):
     novel_title = search_soup.select_one('.truyen-title a').text
     page = chapter // 50 + 1
 
-    state = False
-    links = []
-    novel_image = None
-
-    tasks = []
-    for page_num in range(page, page + 2):
-        url_part1 = f'https://novelfull.com/infinite-mana-in-the-apocalypse.html?page='
-        page_url = f"{url_part1}{page_num}"
-        tasks.append(fetch_html(session, page_url))
-
+    tasks = [
+        fetch_html(session, f"https://novelfull.com/infinite-mana-in-the-apocalypse.html?page={page_num}")
+        for page_num in range(page - 1, page + 2)
+    ]
     page_soups = await asyncio.gather(*tasks)
 
-    for page_num, soup1 in zip(range(page, page + 2), page_soups):
-        titles = [item.text.split('-')[0] for item in soup1.select('#list-chapter .row li a')]
-        page_links = [item['href'] for item in soup1.select('.list-chapter li a')]
+    links = []
+    novel_image = None
+    state = False
+
+    for page_num, soup in zip(range(page - 1, page + 2), page_soups):
+        titles = [item.text.split('-')[0] for item in soup.select('#list-chapter .row li a')]
+        page_links = [item['href'] for item in soup.select('.list-chapter li a')]
 
         for index, (title, link) in enumerate(zip(titles, page_links)):
             if str(chapter) in title:
                 last_page = (index + number) // 50 + page_num
-                for sub_page_num in range(page_num + 1, last_page + 1):
-                    sub_page_url = f"{url_part1}{sub_page_num}"
-                    soup = await fetch_html(session, sub_page_url)
-                    page_links += [item['href'] for item in soup.select('.list-chapter li a')]
-
-                links = [f"https://novelfull.com{link}" for link in page_links[index:][:number]]
+                links = [f"https://novelfull.com{link}" for link in page_links[index:index + number]]
+                novel_image = "https://novelfull.com" + soup.select_one('.book img')['src']
                 state = True
-                novel_image = "https://novelfull.com" + soup1.select_one('.book img')['src']
                 break
         if state:
             break
@@ -83,6 +76,7 @@ async def get_text(keyword, chapter, number):
     async with aiohttp.ClientSession(headers=headers) as session:
         urls, novel_title, novel_image = await get_urls(session, number, chapter, keyword)
 
+        # Fetch all pages concurrently
         tasks = [get_page_content(session, url) for url in urls]
         texts = await asyncio.gather(*tasks)
 
@@ -100,7 +94,5 @@ async def get_text(keyword, chapter, number):
             "array": text_array
         }
 
-# Example usage (Run inside an event loop):
-# print(asyncio.run(get_text("alchemy emperor of the divine dao", 1, 1)))
-
-
+# Example usage:
+# asyncio.run(get_text("alchemy emperor of the divine dao", 1, 5))
