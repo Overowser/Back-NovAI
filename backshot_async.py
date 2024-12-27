@@ -1,10 +1,26 @@
 import aiohttp
 from bs4 import BeautifulSoup
 import asyncio
+import re
+import sqlite3
+from datetime import datetime
 
 headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0",
 }
+
+# create the database in the local
+conn = sqlite3.connect("database.db")
+cursor = conn.cursor()
+
+cursor.execute('''
+CREATE TABLE IF NOT EXISTS chapters (
+    url VARCHAR PRIMARY KEY NOT NULL,
+    text TEXT NOT NULL
+)
+''')
+conn.commit()
+conn.close()
 
 async def fetch_html(session, url):
     async with session.get(url) as response:
@@ -12,18 +28,41 @@ async def fetch_html(session, url):
         return BeautifulSoup(html, 'html.parser')
 
 async def get_page_content(session, url):
+    conn = sqlite3.connect("database.db")
+    cursor = conn.cursor()
+    cursor.execute('''SELECT * FROM chapters
+    WHERE url = ?
+    ''', (url,))
+    data_fetched = cursor.fetchall()
+    if data_fetched:
+        text = data_fetched[0][-1]
+        conn.close()
+        return text
+
     soup = await fetch_html(session, url)
-    return '\n'.join(
+    text = '\n'.join(
         [
             item.text
             for item in soup.select('p')
             if item.text.strip() and 'translator' not in item.text.lower() and 'copyright' not in item.text.lower()
         ]
     )
+    conn = sqlite3.connect("database.db")
+    cursor = conn.cursor()
+    cursor.execute('''
+    INSERT INTO chapters (url, text) VALUES (?, ?)
+    ''', (url, text))
+
+    conn.commit()
+    conn.close()
+
+    return text
+
 
 async def get_urls(session, number, chapter, keyword):
     number = int(number)
     chapter = int(chapter)
+    
 
     search_url = f"https://novelfull.com/search?keyword={keyword}"
     search_soup = await fetch_html(session, search_url)
@@ -31,26 +70,33 @@ async def get_urls(session, number, chapter, keyword):
     novel_title = search_soup.select_one('.truyen-title a').text
     page = chapter // 50 + 1
 
+    state = False
+    links = []
+    novel_image = None
+
+    url_part1 = f'https://novelfull.com{search_soup.select_one('.truyen-title a')["href"]}?page='
+
     tasks = [
-        fetch_html(session, f"https://novelfull.com/infinite-mana-in-the-apocalypse.html?page={page_num}")
-        for page_num in range(page - 1, page + 2)
+        fetch_html(session, f"{url_part1}{page_num}")
+        for page_num in range(page, page + 2)
     ]
     page_soups = await asyncio.gather(*tasks)
 
-    links = []
-    novel_image = None
-    state = False
-
-    for page_num, soup in zip(range(page - 1, page + 2), page_soups):
-        titles = [item.text.split('-')[0] for item in soup.select('#list-chapter .row li a')]
-        page_links = [item['href'] for item in soup.select('.list-chapter li a')]
+    for page_num, soup1 in zip(range(page, page + 2), page_soups):
+        titles = [item.text.split('-')[0] for item in soup1.select('#list-chapter .row li a')]
+        page_links = [item['href'] for item in soup1.select('.list-chapter li a')]
 
         for index, (title, link) in enumerate(zip(titles, page_links)):
             if str(chapter) in title:
                 last_page = (index + number) // 50 + page_num
-                links = [f"https://novelfull.com{link}" for link in page_links[index:index + number]]
-                novel_image = "https://novelfull.com" + soup.select_one('.book img')['src']
+                for sub_page_num in range(page_num + 1, last_page + 1):
+                    sub_page_url = f"{url_part1}{sub_page_num}"
+                    soup = await fetch_html(session, sub_page_url)
+                    page_links += [item['href'] for item in soup.select('.list-chapter li a')]
+
+                links = [f"https://novelfull.com{link}" for link in page_links[index:][:number]]
                 state = True
+                novel_image = "https://novelfull.com" + soup1.select_one('.book img')['src']
                 break
         if state:
             break
@@ -58,25 +104,24 @@ async def get_urls(session, number, chapter, keyword):
     return links, novel_title, novel_image
 
 def preprocess(text):
-    replacements = {
-        '.a.p.e': 'ape', 'l.a.p': 'lap', '+': ' plus',
-        '.a.r.e': 'are', '.o.a.n': 'oan', '.a.t.u.r.e': 'ature',
-        '.r.e.a.s.t': 'reast', '.b.s.c.e.n.e': 'bscene',
-        '.u.c.k.i.n.g': 'ucking', '.u.c.k.e.d': 'ucked', '.i.e.d': 'ed',
-        '.U.C.K': 'uck', '.u.c.k': 'uck',
-        '.h.e.s.t': 'hest', '.o.c.k': 'ock', '.e.m.e.n': 'emen',
-        '.i.p.s': 'ips', '.u.m': 'um', '.u.s.t': 'ust', '.e.x': 'ex',
-        '.d.u.l.t': 'dult', '.i.c.k': 'ick', '.r.o.s.t.i.t.u.t.e': 'rostitute'
-    }
-    for old, new in replacements.items():
-        text = text.replace(old, new)
+    # Regex patterns
+    replacements = [
+        (r'(?<!\w)\.(\w)\.', r'\1'),  # Replace ".letter." with "letter" only if not part of a longer word
+        (r'(?<=\w)\.(\w)', r'\1'),    # Replace ".letter" when preceded by a word character
+        (r'(\w)\.(?=\w)', r'\1'),     # Replace "letter." when followed by a word character
+        (r'\+', ' plus'),             # Replace "+" with "plus"
+    ]
+    
+    # Apply each regex replacement
+    for pattern, replacement in replacements:
+        text = re.sub(pattern, replacement, text)
+    
     return text
 
 async def get_text(keyword, chapter, number):
     async with aiohttp.ClientSession(headers=headers) as session:
         urls, novel_title, novel_image = await get_urls(session, number, chapter, keyword)
 
-        # Fetch all pages concurrently
         tasks = [get_page_content(session, url) for url in urls]
         texts = await asyncio.gather(*tasks)
 
@@ -94,5 +139,7 @@ async def get_text(keyword, chapter, number):
             "array": text_array
         }
 
-# Example usage:
-# asyncio.run(get_text("alchemy emperor of the divine dao", 1, 5))
+# Example usage (Run inside an event loop):
+# startTime = datetime.now()
+# asyncio.run(get_text("alchemy emperor of the divine dao", 1, 3000))
+# print(f"Time taken: {datetime.now() - startTime}")
