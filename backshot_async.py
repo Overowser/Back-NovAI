@@ -141,5 +141,5 @@ async def get_text(keyword, chapter, number):
 
 # Example usage (Run inside an event loop):
 # startTime = datetime.now()
-# asyncio.run(get_text("alchemy emperor of the divine dao", 1, 3000))
+# asyncio.run(get_text("alchemy emperor of the divine dao", 1, 100))
 # print(f"Time taken: {datetime.now() - startTime}")

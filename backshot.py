@@ -2,10 +2,24 @@ import aiohttp
 from bs4 import BeautifulSoup
 import asyncio
 import re
+import aiosqlite
+from datetime import datetime
 
 headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0",
 }
+
+async def init_db():
+    async with aiosqlite.connect("database1.db") as conn:
+        await conn.execute('''
+        CREATE TABLE IF NOT EXISTS chapters (
+            url VARCHAR PRIMARY KEY NOT NULL,
+            text TEXT NOT NULL
+        )
+        ''')
+        await conn.commit()
+
+asyncio.run(init_db())
 
 async def fetch_html(session, url):
     async with session.get(url) as response:
@@ -13,14 +27,25 @@ async def fetch_html(session, url):
         return BeautifulSoup(html, 'html.parser')
 
 async def get_page_content(session, url):
-    soup = await fetch_html(session, url)
-    return '\n'.join(
-        [
-            item.text
-            for item in soup.select('p')
-            if item.text.strip() and 'translator' not in item.text.lower() and 'copyright' not in item.text.lower()
-        ]
-    )
+    async with aiosqlite.connect("database1.db") as conn:
+        async with conn.execute('SELECT text FROM chapters WHERE url = ?', (url,)) as cursor:
+            data_fetched = await cursor.fetchone()
+            if data_fetched:
+                return data_fetched[0]
+
+        soup = await fetch_html(session, url)
+        text = '\n'.join(
+            [
+                item.text
+                for item in soup.select('p')
+                if item.text.strip() and 'translator' not in item.text.lower() and 'copyright' not in item.text.lower()
+            ]
+        )
+
+        await conn.execute('INSERT INTO chapters (url, text) VALUES (?, ?)', (url, text))
+        await conn.commit()
+
+        return text
 
 async def get_urls(session, number, chapter, keyword):
     number = int(number)
@@ -103,5 +128,6 @@ async def get_text(keyword, chapter, number):
         }
 
 # Example usage (Run inside an event loop):
-# print(asyncio.run(get_text("alchemy emperor of the divine dao", 1, 1)))
-
+# startTime = datetime.now()
+# asyncio.run(get_text("alchemy emperor of the divine dao", 1, 100))
+# print(f"Time taken: {datetime.now() - startTime}")
