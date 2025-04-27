@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify
-# from backshot import get_text
-from backshot_async import get_text
+# from backend import get_text
+from backend_async import get_text
 from flask_cors import CORS, cross_origin
 import asyncio
 
