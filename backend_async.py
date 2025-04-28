@@ -10,7 +10,7 @@ headers = {
 }
 
 # create the database in the local
-conn = sqlite3.connect("database.db")
+conn = sqlite3.connect("novels.db")
 cursor = conn.cursor()
 
 cursor.execute('''
@@ -28,7 +28,7 @@ async def fetch_html(session, url):
         return BeautifulSoup(html, 'html.parser')
 
 async def get_page_content(session, url):
-    conn = sqlite3.connect("database.db")
+    conn = sqlite3.connect("novels.db")
     cursor = conn.cursor()
     cursor.execute('''SELECT * FROM chapters
     WHERE url = ?
@@ -47,7 +47,7 @@ async def get_page_content(session, url):
             if item.text.strip() and 'translator' not in item.text.lower() and 'copyright' not in item.text.lower()
         ]
     )
-    conn = sqlite3.connect("database.db")
+    conn = sqlite3.connect("novels.db")
     cursor = conn.cursor()
     cursor.execute('''
     INSERT INTO chapters (url, text) VALUES (?, ?)

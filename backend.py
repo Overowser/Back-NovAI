@@ -10,7 +10,7 @@ headers = {
 }
 
 async def init_db():
-    async with aiosqlite.connect("database1.db") as conn:
+    async with aiosqlite.connect("novels.db") as conn:
         await conn.execute('''
         CREATE TABLE IF NOT EXISTS chapters (
             url VARCHAR PRIMARY KEY NOT NULL,
@@ -27,7 +27,7 @@ async def fetch_html(session, url):
         return BeautifulSoup(html, 'html.parser')
 
 async def get_page_content(session, url):
-    async with aiosqlite.connect("database1.db") as conn:
+    async with aiosqlite.connect("novels.db") as conn:
         async with conn.execute('SELECT text FROM chapters WHERE url = ?', (url,)) as cursor:
             data_fetched = await cursor.fetchone()
             if data_fetched:
