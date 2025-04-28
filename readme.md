@@ -61,9 +61,8 @@ Before sending text to the frontend, the backend applies preprocessing to:
 
 ## CORS Handling
 
-- CORS settings are primarily handled by the **frontend**.
-- By default, communication is expected between frontend and backend running locally on the same machine.
-- If cross-origin access becomes necessary, backend CORS configuration can be added.
+- CORS is configured in the backend for both FastAPI and Flask servers.  
+- This allows the frontend and backend to communicate during development and testing without cross-origin issues.
 
 ## Notes
 
