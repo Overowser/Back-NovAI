@@ -153,3 +153,8 @@ To contribute to this project:
 
 [MIT License](LICENSE)
 
+## Contact
+
+For questions or feedback, please open an issue on GitHub or contact [ben-ghali@hotmail.com](mailto:ben-ghali@hotmail.com).
+
+For more information about the complete NovAI project, including the frontend implementation, please visit my portfolio at [overowser.github.io](https://overowser.github.io).
