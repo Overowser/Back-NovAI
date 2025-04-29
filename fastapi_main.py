@@ -28,4 +28,4 @@ async def get_user(req: RequestData):
     return user_data
 
 # To run:
-# uvicorn your_file_name:app --reload
+# uvicorn fastapi_main:app --reload --port 5000
